@@ -1,5 +1,6 @@
 import requests
 import pandas as pd
+from binstar_client.pprintb import user_list
 from tqdm import tqdm
 import json
 import os
@@ -8,6 +9,7 @@ if not os.path.exists('data'):
     os.makedirs('data/id')
     os.makedirs('data/env')
     os.makedirs('data/season')
+    os.makedirs('data/cultivate')
 
 def check_farm_id(serviceKey, itemcode):
     # 농가 지역, 코드, 작목 확인 API 주소
@@ -30,6 +32,27 @@ def check_farm_id(serviceKey, itemcode):
 
     print(tomato_csv.head())
     tomato_csv.to_csv(f'data/id/{itemcode}_data.csv', index=False, encoding='utf-8-sig')
+
+def check_farm_id_real(serviceKey, itemcode):
+    years = list(range(2015, 2026))
+    df_list = []
+    for year in years:
+        url = f'http://www.smartfarmkorea.net/Agree_WS/webservices/CropseasonRestService/getCroppingSeasonDataList/{serviceKey}/{year}'
+
+        response = requests.get(url)
+        data = response.json()
+        df = pd.DataFrame(data)
+        print(df.head())
+        df_list.append(df)
+
+    # 모든 연도의 데이터 합치기
+    all_data = pd.concat(df_list, ignore_index=True)
+
+    # 특정 작목, 환경정보, 생육정보가 있는 데이터 추출
+    tomato_data = all_data[
+        (all_data['itemCode'] == f'{itemcode}') & (all_data['acqAutoYn'] == 'Y') & (all_data['acqCultiYn'] == 'Y')]
+    tomato_data.to_csv(f'data/id/{itemcode}_cropping_data.csv', index=False, encoding='utf-8-sig')
+
 
 def check_farm_season(serviceKey, user_list, itemcode):
     # 작목별 농가 작기정보 조회 API 주소 (사용자별 작기 일자 추출)
@@ -59,7 +82,7 @@ def check_farm_season(serviceKey, user_list, itemcode):
             error_count += 1
 
     # 작기 정보 json 저장
-    with open(f'data/season/{itemcode}_season_data.json', 'w', encoding='utf-8') as f:
+    with open(f'data/season/{itemcode}_season_data_y.json', 'w', encoding='utf-8') as f:
         json.dump(user_season, f, ensure_ascii=False, indent=2)
 
     # 데이터 없는 농가 수 출력
@@ -102,28 +125,46 @@ def check_farm_env(serviceKey, season_data, sect, fatr, itemcode):
 
 def main():
     serviceKey = 'cc9f5cd1181a40b3ac686421b352863d'
-    #토마토 작목 농가 정보 확인
+
+    # 토마토 작목 농가 정보 확인
     # check_farm_id(serviceKey, '080300')
     # tomato_id = pd.read_csv('data/id/080300_data.csv', encoding='utf-8-sig')
     # user_list = tomato_id['userId'].tolist()
     #
     # #토마토 농가 작기 확인
     # check_farm_season(serviceKey, user_list, '080300')
-    with open('data/season/080300_season_data.json', 'r', encoding='utf-8') as f:
-        tomato_season = json.load(f)
+    # with open('data/season/080300_season_data.json', 'r', encoding='utf-8') as f:
+    #     tomato_season = json.load(f)
+    #
+    #
+    # #토마토 농가 환경 정보 확인
+    # env_list = [('EI', 'IS'), ('EI', 'IR'), ('EI', 'LI'), ('EI', 'TI')
+    #             , ('EI', 'HI'), ('EI', 'HI01'), ('EO', 'TE'), ('EO', 'HE'), ('EO', 'CR')]
+    #
+    # for x, y in env_list:
+    #     check_farm_env(serviceKey, tomato_season, x, y, '080300')
+
+    crop_id = pd.read_csv('data/id/tomato_cropping_season.csv', encoding='utf-8-sig')
+    df_list = []
+
+    for row in tqdm(crop_id.itertuples(index=False)):
+        userId = row.facilityId[:-3]
+        croppingSerlNo = row.croppingSerlNo
+        startDate = row.croppingDate
+        endDate = row.croppingEndDate
 
 
-    #토마토 농가 환경 정보 확인
-    env_list = [('EI', 'IS'), ('EI', 'IR'), ('EI', 'LI'), ('EI', 'TI')
-                , ('EI', 'HI'), ('EI', 'HI01'), ('EO', 'TE'), ('EO', 'HE'), ('EO', 'CR')]
+        url = f"http://www.smartfarmkorea.net/Agree_WS/webservices/ProvideRestService/getCultivateDataList/{serviceKey}/{userId}/{croppingSerlNo}/{startDate}/{endDate}"
+        response = requests.get(url)
+        data = response.json()
 
-    for x, y in env_list:
-        check_farm_env(serviceKey, tomato_season, x, y, '080300')
+        df = pd.DataFrame(data)
+        df_list.append(df)
+        print(df.head())
 
-
-
-
-
+    # 모든 농가의 생육 정보 데이터 합치기
+    df_all = pd.concat(df_list, ignore_index=True)
+    df_all.to_csv('data/cultivate/080300_cultivate_data.csv', index=False, encoding='utf-8-sig')
 
 
 
