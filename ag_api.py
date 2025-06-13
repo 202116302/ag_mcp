@@ -32,6 +32,7 @@ def check_farm_id(serviceKey, itemcode):
     print(tomato_csv.head())
     tomato_csv.to_csv(f'data/id/{itemcode}_data.csv', index=False, encoding='utf-8-sig')
 
+# 농가별 환경정보, 생육정보 있는 데이터만 추출;
 def check_farm_id_real(serviceKey, itemcode):
     years = list(range(2015, 2026))
     df_list = []
@@ -165,6 +166,10 @@ def main():
     # for x, y in env_list:
     #     check_farm_env(serviceKey, tomato_season, x, y, '080300')
     # check_farm_env(serviceKey, tomato_season, x, y, '080300')
+
+    # 토마토 농가 생육 정보 확인
+    # df = pd.read_csv('data/id/080300_cropping_data.csv', encoding='utf-8-sig')
+    # check_farm_cultivate(serviceKey, df, '080300')
 
 
     crop_id = pd.read_csv('data/cultivate/080300_cultivate_data.csv', encoding='utf-8-sig')
