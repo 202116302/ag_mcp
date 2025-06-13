@@ -1,6 +1,5 @@
 import requests
 import pandas as pd
-from binstar_client.pprintb import user_list
 from tqdm import tqdm
 import json
 import os
@@ -88,7 +87,7 @@ def check_farm_season(serviceKey, user_list, itemcode):
     # 데이터 없는 농가 수 출력
     print(error_count)
 
-
+# 농가별 환경정보 수집
 def check_farm_env(serviceKey, season_data, sect, fatr, itemcode):
     data_list = []
 
@@ -122,6 +121,28 @@ def check_farm_env(serviceKey, season_data, sect, fatr, itemcode):
 
         sample_data.to_csv(f'data/env/{itemcode}_{fatr}_data.csv', encoding='utf-8-sig', index=False)
 
+# 농가별 생육정보 수집
+def check_farm_cultivate(serviceKey, df, itemcode):
+    df_list = []
+
+    for row in tqdm(df.itertuples(index=False)):
+        userId = row.facilityId[:-3]
+        croppingSerlNo = row.croppingSerlNo
+        startDate = row.croppingDate
+        endDate = row.croppingEndDate
+
+        url = f"http://www.smartfarmkorea.net/Agree_WS/webservices/ProvideRestService/getCultivateDataList/{serviceKey}/{userId}/{croppingSerlNo}/{startDate}/{endDate}"
+        response = requests.get(url)
+        data = response.json()
+
+        df = pd.DataFrame(data)
+        df_list.append(df)
+        print(df.head())
+
+    # 모든 농가의 생육 정보 데이터 합치기
+    df_all = pd.concat(df_list, ignore_index=True)
+    df_all.to_csv(f'data/cultivate/{itemcode}_cultivate_data.csv', index=False, encoding='utf-8-sig')
+
 
 def main():
     serviceKey = 'cc9f5cd1181a40b3ac686421b352863d'
@@ -143,28 +164,31 @@ def main():
     #
     # for x, y in env_list:
     #     check_farm_env(serviceKey, tomato_season, x, y, '080300')
-
-    crop_id = pd.read_csv('data/id/tomato_cropping_season.csv', encoding='utf-8-sig')
-    df_list = []
-
-    for row in tqdm(crop_id.itertuples(index=False)):
-        userId = row.facilityId[:-3]
-        croppingSerlNo = row.croppingSerlNo
-        startDate = row.croppingDate
-        endDate = row.croppingEndDate
+    # check_farm_env(serviceKey, tomato_season, x, y, '080300')
 
 
-        url = f"http://www.smartfarmkorea.net/Agree_WS/webservices/ProvideRestService/getCultivateDataList/{serviceKey}/{userId}/{croppingSerlNo}/{startDate}/{endDate}"
-        response = requests.get(url)
-        data = response.json()
+    crop_id = pd.read_csv('data/cultivate/080300_cultivate_data.csv', encoding='utf-8-sig')
+    df = pd.read_csv('data/id/tomato_cropping_season.csv', encoding='utf-8-sig')
 
-        df = pd.DataFrame(data)
-        df_list.append(df)
-        print(df.head())
+    df2 = pd.read_csv('data/id/080300_data.csv', encoding='utf-8-sig')
+    # print(len(df2['facilityId'].unique()))
 
-    # 모든 농가의 생육 정보 데이터 합치기
-    df_all = pd.concat(df_list, ignore_index=True)
-    df_all.to_csv('data/cultivate/080300_cultivate_data.csv', index=False, encoding='utf-8-sig')
+    crop_id = crop_id.dropna(subset=['userId'])
+
+
+    farm_list = []
+    for x in crop_id['userId'].unique():
+        farm_list.append(x + '_01')
+
+    for x in os.listdir("data/env/origin"):
+        if x.endswith('.csv'):
+            df = pd.read_csv(f'data/env/origin/{x}', encoding='utf-8-sig')
+            df = df[(df['facilityId'].isin(farm_list)) & (df['itemCode'] == 80300)]
+            df = df.dropna(axis=0)
+            df.to_csv(f'data/env/{x}_final.csv', index=False, encoding='utf-8-sig')
+
+
+
 
 
 
